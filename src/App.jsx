@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Settings, FileText, User } from 'lucide-react';
+import { Mic, Settings, FileText, Download } from 'lucide-react';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { initializeGemini, translateText, summarizeLogs } from './services/gemini';
-import { Download } from 'lucide-react';
 import './index.css';
 
 function App() {
@@ -19,8 +18,8 @@ function App() {
   const [activeSpeaker, setActiveSpeaker] = useState('host'); // 'host' | 'guest'
   const [isMicOn, setIsMicOn] = useState(false);
 
+  // New: Single chat log
   const [logs, setLogs] = useState(() => {
-    // Load from local storage on boot
     const saved = localStorage.getItem('meeting_logs');
     return saved ? JSON.parse(saved) : [];
   });
@@ -32,8 +31,7 @@ function App() {
   const [lastSummaryIndex, setLastSummaryIndex] = useState(0);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
-  const guestPanelRef = useRef(null);
-  const hostPanelRef = useRef(null);
+  const chatContainerRef = useRef(null);
 
   // Helper for language names
   const getLangName = (code) => {
@@ -61,24 +59,16 @@ function App() {
   }, [apiKey, modelName]);
 
   const handleSpeechResult = async ({ final, interim }) => {
-    // Only update if we have content
     if (!final && !interim) return;
 
     setCurrentTranscription(interim);
 
     if (final) {
       const newLogId = Date.now();
-      const speaker = activeSpeaker;
+      const speaker = activeSpeaker; // Captured at moment of finalization
 
-      const getLangName = (code) => {
-        if (code === 'ko-KR') return 'Korean';
-        if (code === 'ru-RU') return 'Russian';
-        if (code === 'en-US') return 'English';
-        return 'Korean'; // Default
-      };
-
-      // If Speaker is Host, Target is Guest's Lang. If Speaker is Guest, Target is Host's Lang.
       const targetLangCode = speaker === 'host' ? guestLang : hostLang;
+      // Just for display, we don't strictly need target name in log logic unless for Gemini Prompt
       const targetLangName = getLangName(targetLangCode);
 
       const newLog = {
@@ -86,7 +76,7 @@ function App() {
         speaker: speaker,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         original: final,
-        translated: '...' // Placeholder
+        translated: 'Translating...'
       };
 
       setLogs(prev => [...prev, newLog]);
@@ -101,14 +91,59 @@ function App() {
     }
   };
 
+  // Determine current active language for STT
   const currentLang = activeSpeaker === 'host' ? hostLang : guestLang;
   const { isListening } = useSpeechRecognition(currentLang, isMicOn, handleSpeechResult);
 
   // Auto-scroll
   useEffect(() => {
-    if (guestPanelRef.current) guestPanelRef.current.scrollTop = guestPanelRef.current.scrollHeight;
-    if (hostPanelRef.current) hostPanelRef.current.scrollTop = hostPanelRef.current.scrollHeight;
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [logs, currentTranscription]);
+
+  // Dual Mic Toggle Logic
+  const activateMic = (speakerType) => {
+    if (activeSpeaker === speakerType && isMicOn) {
+      // If already active on this speaker, toggle OFF
+      setIsMicOn(false);
+    } else {
+      // Switch speaker and ensure ON
+      // Note: Switching lang will trigger hook to restart with new lang
+      setActiveSpeaker(speakerType);
+      setIsMicOn(true);
+    }
+  };
+
+
+  const handleKeyDown = (e) => {
+    // Avoid potentially conflicting with input fields if we had them (except settings)
+    if (showSettings) return;
+
+    switch (e.code) {
+      case 'ArrowLeft':
+      case 'Digit1':
+      case 'Numpad1':
+        activateMic('host');
+        break;
+      case 'ArrowRight':
+      case 'Digit2':
+      case 'Numpad2':
+        activateMic('guest');
+        break;
+      case 'Space':
+        e.preventDefault(); // Prevent scrolling
+        setIsMicOn(prev => !prev);
+        break;
+      default:
+        break;
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeSpeaker, isMicOn, showSettings]);
 
   const handleSummarize = async () => {
     setIsSummarizing(true);
@@ -117,7 +152,6 @@ function App() {
 
     if (newLogs.length > 0) {
       const newSummary = await summarizeLogs(newLogs);
-      // Append with a separator
       const separator = lastSummaryIndex > 0 ? "\n\n--- Next Section ---\n\n" : "";
       setSummaryText(prev => (prev || "") + separator + newSummary);
       setLastSummaryIndex(logs.length);
@@ -154,13 +188,26 @@ function App() {
     const file = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
     element.href = URL.createObjectURL(file);
     element.download = `meeting_logs_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(element); // Required for this to work in FireFox
+    document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
   };
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+
+      {/* Top Left Settings Button */}
+      <button className="settings-overlay-btn" onClick={() => setShowSettings(true)} title="Settings">
+        <Settings size={24} />
+      </button>
+
+      {/* Top Right Action Buttons */}
+      <div className="action-overlay-btn">
+        <button className="btn" style={{ padding: '0.5rem', background: 'rgba(0,0,0,0.5)' }} onClick={handleSummarize} title="Summarize">
+          <FileText size={20} />
+        </button>
+      </div>
+
       {/* Settings Modal */}
       {showSettings && (
         <div className="modal-overlay">
@@ -169,75 +216,44 @@ function App() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Google Gemini API Key</label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Paste your API key here..."
-                  style={{ width: '100%' }}
-                />
+                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Paste your API key here..." style={{ width: '100%' }} />
               </div>
 
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Gemini Model Name (Optional)</label>
-                <input
-                  type="text"
-                  value={modelName}
-                  onChange={(e) => setModelName(e.target.value)}
-                  placeholder="gemini-1.5-flash, gemini-pro, gemini-1.0-pro ..."
-                  style={{ width: '100%' }}
-                />
-                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '4px' }}>
-                  Common models: gemini-1.5-flash, gemini-1.5-pro, gemini-1.0-pro, gemini-pro
-                </div>
+                <input type="text" value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="gemini-1.5-flash" style={{ width: '100%' }} />
               </div>
 
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>My Language (Host)</label>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>My Language (Left Mic)</label>
                   <select value={hostLang} onChange={(e) => setHostLang(e.target.value)} style={{ width: '100%' }}>
                     <option value="ko-KR">Korean (한국어)</option>
-                    <option value="en-US">English (영어)</option>
-                    <option value="ru-RU">Russian (러시아어)</option>
+                    <option value="en-US">English</option>
+                    <option value="ru-RU">Russian</option>
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Other Language (Guest)</label>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Their Language (Right Mic)</label>
                   <select value={guestLang} onChange={(e) => setGuestLang(e.target.value)} style={{ width: '100%' }}>
                     <option value="ru-RU">Russian (러시아어)</option>
-                    <option value="en-US">English (영어)</option>
-                    <option value="ko-KR">Korean (한국어)</option>
+                    <option value="en-US">English</option>
+                    <option value="ko-KR">Korean</option>
                   </select>
                 </div>
               </div>
 
               <div style={{ borderTop: '1px solid #444', paddingTop: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#888' }}>Supabase Storage (Optional)</label>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <input type="text" placeholder="Supabase URL" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} style={{ flex: 1 }} />
-                  <input type="password" placeholder="Supabase Key" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} style={{ flex: 1 }} />
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#888' }}>Supabase Storage</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input type="text" placeholder="URL" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} style={{ flex: 1 }} />
+                  <input type="password" placeholder="Key" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} style={{ flex: 1 }} />
                 </div>
               </div>
 
               <button className="btn primary" onClick={handleSaveSettings} style={{ marginTop: '1rem', justifyContent: 'center' }}>
-                Start Meeting
+                Save & Start
               </button>
-
-              <div style={{ borderTop: '1px solid #444', paddingTop: '1rem', marginTop: '0.5rem' }}>
-                <button className="btn" style={{ width: '100%', fontSize: '0.9rem', justifyContent: 'center' }} onClick={async () => {
-                  if (!apiKey) { alert("Please enter API Key first"); return; }
-                  try {
-                    const { fetchAvailableModels } = await import('./services/gemini');
-                    const models = await fetchAvailableModels(apiKey);
-                    const modelNames = models.map(m => m.name.replace('models/', ''));
-                    alert("Connection Successful!\nAvailable Models:\n" + modelNames.join('\n'));
-                  } catch (e) {
-                    alert("Connection Failed:\n" + e.message + "\n\nMake sure your API Key is valid for Gemini (Generative Language API) and you are in a supported region.");
-                  }
-                }}>
-                  Test Connection & List Models
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -250,7 +266,8 @@ function App() {
             <div className="modal-header">
               <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><FileText /> Live Meeting Minutes</span>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button className="btn" onClick={downloadLogs} title="Download Full JSON Logs"><Download size={18} /> Logs</button>
+                {supabaseClient && <button className="btn" onClick={saveToSupabase}>Save to Cloud</button>}
+                <button className="btn" onClick={downloadLogs}><Download size={18} /> Logs</button>
                 <button className="btn" onClick={() => setShowSummary(false)}>Close</button>
               </div>
             </div>
@@ -262,119 +279,49 @@ function App() {
         </div>
       )}
 
-      {/* Main Split View */}
-      <div className="split-view">
-
-        {/* Top: Guest Panel */}
-        <div className="panel guest-panel" ref={guestPanelRef}>
-          <div style={{
-            position: 'sticky', top: -20, background: 'linear-gradient(180deg, #1a1a1a 80%, transparent)',
-            zIndex: 5, paddingBottom: '1rem', color: '#666', fontWeight: 'bold'
-          }}>
-            GUEST VIEW (Russian)
+      {/* Unified Chat Area */}
+      <div className="chat-container" ref={chatContainerRef}>
+        {logs.map(log => (
+          <div key={log.id} className={`chat-bubble ${log.speaker}`}>
+            <div className="log-content-main">
+              {log.original}
+            </div>
+            <div className="log-content-sub">
+              {log.translated}
+            </div>
+            <div className="timestamp">
+              {log.timestamp}
+            </div>
           </div>
-          {logs.map(log => (
-            <div key={log.id} className="log-item" style={{
-              alignSelf: log.speaker === 'guest' ? 'flex-end' : 'flex-start',
-              textAlign: log.speaker === 'guest' ? 'right' : 'left',
-              background: log.speaker === 'guest' ? 'rgba(255, 140, 0, 0.1)' : 'rgba(255,255,255,0.05)'
-            }}>
-              <div style={{ fontSize: '1.6rem' }}>
-                {/* Guest sees: If Guest(Spoke) -> Orig. If Host(Spoke) -> Trans */}
-                {log.speaker === 'guest' ? log.original : log.translated}
-              </div>
-              <div style={{ fontSize: '0.8rem', opacity: 0.5, marginTop: '4px' }}>{log.timestamp}</div>
+        ))}
+        {currentTranscription && (
+          <div className={`chat-bubble ${activeSpeaker}`} style={{ opacity: 0.7 }}>
+            <div className="log-content-main">
+              {currentTranscription}...
             </div>
-          ))}
-        </div>
-
-        {/* Bottom: Host Panel */}
-        <div className="panel host-panel" ref={hostPanelRef}>
-          <div style={{
-            position: 'sticky', top: -20, background: 'linear-gradient(180deg, #1a1a1a 80%, transparent)',
-            zIndex: 5, paddingBottom: '1rem', color: '#666', fontWeight: 'bold'
-          }}>
-            HOST VIEW (Korean)
           </div>
-          {logs.map(log => (
-            <div key={log.id} className="log-item" style={{
-              alignSelf: log.speaker === 'host' ? 'flex-end' : 'flex-start',
-              textAlign: log.speaker === 'host' ? 'right' : 'left',
-              background: log.speaker === 'host' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.05)'
-            }}>
-              <div style={{ fontSize: '1.6rem' }}>
-                {/* Host sees: If Host -> Orig. If Guest -> Trans */}
-                {log.speaker === 'host' ? log.original : log.translated}
-              </div>
-              {/* Small original text for host if guest spoke */}
-              {log.speaker === 'guest' && (
-                <div style={{ fontSize: '1rem', color: '#888', fontStyle: 'italic', marginTop: '4px' }}>
-                  "{log.original}"
-                </div>
-              )}
-              <div style={{ fontSize: '0.8rem', opacity: 0.5, marginTop: '4px' }}>{log.timestamp}</div>
-            </div>
-          ))}
-
-          {/* Interim Display for Host */}
-          {currentTranscription && (
-            <div className="log-item interim" style={{ alignSelf: activeSpeaker === 'host' ? 'flex-end' : 'flex-start', textAlign: activeSpeaker === 'host' ? 'right' : 'left' }}>
-              <div style={{ fontSize: '1.4rem' }}>{currentTranscription}...</div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Control Bar */}
-      <div className="control-bar">
-        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-          <button className="btn" onClick={() => setShowSettings(true)} title="Settings">
-            <Settings size={24} />
-          </button>
+      {/* Dual Mic Control Bar */}
+      <div className="control-bar-dual">
+        {/* Host (Left) Mic */}
+        <button
+          className={`big-mic-btn host-btn ${activeSpeaker === 'host' && isMicOn ? 'active' : 'inactive'}`}
+          onClick={() => activateMic('host')}
+        >
+          <Mic size={40} />
+          <div className="mic-label">{getLangName(hostLang)}</div>
+        </button>
 
-          {/* Speaker Toggle */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase' }}>Active Speaker</span>
-            <div style={{ background: '#333', padding: '4px', borderRadius: '8px', display: 'flex' }}>
-              <button
-                className={`btn ${activeSpeaker === 'host' ? 'active' : ''}`}
-                onClick={() => setActiveSpeaker('host')}
-                style={{ borderRadius: '6px', fontSize: '1rem', padding: '0.5rem 1rem' }}
-              >
-                <User size={18} style={{ marginRight: 6 }} /> Me ({getLangName(hostLang)})
-              </button>
-              <button
-                className={`btn ${activeSpeaker === 'guest' ? 'active' : ''}`}
-                onClick={() => setActiveSpeaker('guest')}
-                style={{ borderRadius: '6px', fontSize: '1rem', padding: '0.5rem 1rem' }}
-              >
-                <User size={18} style={{ marginRight: 6 }} /> Guest ({getLangName(guestLang)})
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Mic Button */}
-        <div style={{ position: 'relative' }}>
-          <button
-            className={`btn ${isMicOn ? 'recording' : ''}`}
-            style={{ borderRadius: '50%', width: '72px', height: '72px', padding: 0, justifyContent: 'center', background: isMicOn ? '#ef4444' : '#4b5563' }}
-            onClick={() => setIsMicOn(!isMicOn)}
-          >
-            {isMicOn ? <MicOff size={32} /> : <Mic size={32} />}
-          </button>
-          {isListening && isMicOn && (
-            <div style={{ position: 'absolute', top: -30, left: '50%', transform: 'translateX(-50%)', color: '#ef4444', fontWeight: 'bold', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-              LISTENING ({activeSpeaker === 'host' ? 'Host' : 'Guest'})
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button className="btn" style={{ padding: '0.8rem 1.5rem', fontSize: '1.1rem' }} onClick={handleSummarize}>
-            <FileText size={22} style={{ marginRight: 8 }} /> Summarize
-          </button>
-        </div>
+        {/* Guest (Right) Mic */}
+        <button
+          className={`big-mic-btn guest-btn ${activeSpeaker === 'guest' && isMicOn ? 'active' : 'inactive'}`}
+          onClick={() => activateMic('guest')}
+        >
+          <Mic size={40} />
+          <div className="mic-label">{getLangName(guestLang)}</div>
+        </button>
       </div>
     </div>
   );
