@@ -16,6 +16,8 @@ function App() {
 
   const [hostLang, setHostLang] = useState('ko-KR');
   const [guestLang, setGuestLang] = useState('ru-RU');
+  const [activeSpeaker, setActiveSpeaker] = useState('host'); // 'host' | 'guest'
+  const [isMicOn, setIsMicOn] = useState(false);
 
   const [logs, setLogs] = useState(() => {
     // Load from local storage on boot
