@@ -6,8 +6,13 @@ import './index.css';
 
 function App() {
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
-  // Default to gemini-2.5-flash as requested
-  const [modelName, setModelName] = useState(localStorage.getItem('gemini_model_name') || 'gemini-2.5-flash');
+  // Default translation model
+  const [modelName, setModelName] = useState(localStorage.getItem('gemini_model_name') || 'gemini-2.5-flash-lite');
+
+  // Summary Settings
+  const [summaryModelName, setSummaryModelName] = useState(localStorage.getItem('gemini_summary_model_name') || 'gemini-2.5-flash');
+  const [summaryStyle, setSummaryStyle] = useState(localStorage.getItem('summary_style') || 'detailed');
+  const [customSummaryPrompt, setCustomSummaryPrompt] = useState(localStorage.getItem('custom_summary_prompt') || '');
 
   // Supabase State
   const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('supabase_url') || '');
@@ -36,6 +41,13 @@ function App() {
   const [isSummarizing, setIsSummarizing] = useState(false);
 
   const chatContainerRef = useRef(null);
+
+  // Summary Templates
+  const summaryTemplates = {
+    detailed: "작성 지침: 모든 대화 내용을 빠짐없이 포함하여 상세한 회의록을 작성하시오. 시간 순서대로 논의된 안건, 주요 발언, 결정 사항, 향후 계획을 구체적으로 기술하시오.",
+    action_items: "작성 지침: 회의에서 논의된 '실행해야 할 작업(Action Items)'을 중심으로 요약하시오. 누가, 언제까지, 무엇을 해야 하는지 명확히 리스트 형태로 정리하시오.",
+    executive: "작성 지침: 경영진 보고용으로 핵심 결론과 성과 위주로 간결하게 요약하시오. 세부 사항보다는 큰 흐름과 결정 사항에 집중하시오."
+  };
 
   // Helper for language names
   const getLangName = (code) => {
@@ -88,7 +100,7 @@ function App() {
       const speaker = activeSpeaker; // Captured at moment of finalization
 
       const targetLangCode = speaker === 'host' ? guestLang : hostLang;
-      // Just for display, we don't strictly need target name in log logic unless for Gemini Prompt
+      // Correctly get the name of the TARGET language for translation prompt
       const targetLangName = getLangName(targetLangCode);
 
       const newLog = {
@@ -171,7 +183,11 @@ function App() {
     const newLogs = logs.slice(lastSummaryIndex);
 
     if (newLogs.length > 0) {
-      const newSummary = await summarizeLogs(newLogs);
+      // Determine Prompt
+      let systemPrompt = summaryTemplates[summaryStyle] || "";
+      if (summaryStyle === 'custom') systemPrompt = customSummaryPrompt;
+
+      const newSummary = await summarizeLogs(newLogs, summaryModelName, systemPrompt);
       const separator = lastSummaryIndex > 0 ? "\n\n--- Next Section ---\n\n" : "";
       setSummaryText(prev => (prev || "") + separator + newSummary);
       setLastSummaryIndex(logs.length);
@@ -185,6 +201,9 @@ function App() {
   const handleSaveSettings = () => {
     localStorage.setItem('gemini_api_key', apiKey);
     localStorage.setItem('gemini_model_name', modelName);
+    localStorage.setItem('gemini_summary_model_name', summaryModelName);
+    localStorage.setItem('summary_style', summaryStyle);
+    localStorage.setItem('custom_summary_prompt', customSummaryPrompt);
     localStorage.setItem('supabase_url', supabaseUrl);
     localStorage.setItem('supabase_key', supabaseKey);
     setShowSettings(false);
@@ -237,16 +256,43 @@ function App() {
       {showSettings && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '500px', height: 'auto' }}>
-            <h2 className="modal-header"><Settings size={28} style={{ marginRight: 10 }} /> Initial Setup</h2>
+            <h2 className="modal-header"><Settings size={28} style={{ marginRight: 10 }} /> Settings</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Google Gemini API Key</label>
                 <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Paste your API key here..." style={{ width: '100%' }} />
               </div>
 
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Gemini Model Name (Optional)</label>
-                <input type="text" value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="gemini-2.5-flash" style={{ width: '100%' }} />
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Translation Model</label>
+                  <input type="text" value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="gemini-2.5-flash-lite" style={{ width: '100%' }} />
+                  <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '4px' }}>Recommended: gemini-2.5-flash-lite for speed</div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Summary Model</label>
+                  <input type="text" value={summaryModelName} onChange={(e) => setSummaryModelName(e.target.value)} placeholder="gemini-2.5-flash" style={{ width: '100%' }} />
+                  <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '4px' }}>Higher quality model for summaries</div>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid #444', paddingTop: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Summarization Style</label>
+                <select value={summaryStyle} onChange={(e) => setSummaryStyle(e.target.value)} style={{ width: '100%', marginBottom: '1rem', padding: '0.5rem' }}>
+                  <option value="detailed">Detailed Minutes (빠짐없는 상세 회의록)</option>
+                  <option value="action_items">Action Items (할일/담당자/기한 위주)</option>
+                  <option value="executive">Executive Summary (요약 보고용)</option>
+                  <option value="custom">Custom (직접 입력)</option>
+                </select>
+
+                {summaryStyle === 'custom' && (
+                  <textarea
+                    value={customSummaryPrompt}
+                    onChange={(e) => setCustomSummaryPrompt(e.target.value)}
+                    placeholder="E.g. Summarize in bullet points focusing only on budget..."
+                    style={{ width: '100%', height: '80px', background: '#333', color: '#fff', border: '1px solid #444', borderRadius: '4px', padding: '0.5rem' }}
+                  />
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '1rem' }}>

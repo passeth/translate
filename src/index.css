@@ -88,13 +88,13 @@ body {
 }
 
 .log-content-main {
-  font-size: 1.5rem;
+  font-size: 1.5em;
   font-weight: 600;
   line-height: 1.4;
 }
 
 .log-content-sub {
-  font-size: 1.1rem;
+  font-size: 1.1em;
   opacity: 0.85;
   margin-top: 0.5rem;
   padding-top: 0.5rem;
