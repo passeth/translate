@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Settings, FileText, Download } from 'lucide-react';
+import { Mic, Settings, FileText, Download, Trash2 } from 'lucide-react';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { initializeGemini, translateText, summarizeLogs } from './services/gemini';
 import './index.css';
@@ -268,6 +268,13 @@ function App() {
               <div style={{ display: 'flex', gap: '10px' }}>
                 {supabaseClient && <button className="btn" onClick={saveToSupabase}>Save to Cloud</button>}
                 <button className="btn" onClick={downloadLogs}><Download size={18} /> Logs</button>
+                <button className="btn" style={{ background: '#ef4444' }} onClick={() => {
+                  if (confirm("Are you sure you want to clear all chat history?")) {
+                    setLogs([]);
+                    setSummaryText('');
+                    setLastSummaryIndex(0);
+                  }
+                }}><Trash2 size={18} /> Clear</button>
                 <button className="btn" onClick={() => setShowSummary(false)}>Close</button>
               </div>
             </div>
