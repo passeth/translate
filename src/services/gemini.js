@@ -12,6 +12,21 @@ export const initializeGemini = (apiKey, modelName = "gemini-1.5-flash") => {
     model = genAI.getGenerativeModel({ model: modelName });
 };
 
+export const fetchAvailableModels = async (apiKey) => {
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || response.statusText);
+        }
+        const data = await response.json();
+        return data.models || [];
+    } catch (error) {
+        console.error("Failed to list models:", error);
+        throw error;
+    }
+};
+
 export const translateText = async (text, targetLangName) => {
     if (!model) return "[API Key Invalid/Missing] " + text;
 

@@ -145,6 +145,22 @@ function App() {
               <button className="btn primary" onClick={handleSaveSettings} style={{ marginTop: '1rem', justifyContent: 'center' }}>
                 Start Meeting
               </button>
+
+              <div style={{ borderTop: '1px solid #444', paddingTop: '1rem', marginTop: '0.5rem' }}>
+                <button className="btn" style={{ width: '100%', fontSize: '0.9rem', justifyContent: 'center' }} onClick={async () => {
+                  if (!apiKey) { alert("Please enter API Key first"); return; }
+                  try {
+                    const { fetchAvailableModels } = await import('./services/gemini');
+                    const models = await fetchAvailableModels(apiKey);
+                    const modelNames = models.map(m => m.name.replace('models/', ''));
+                    alert("Connection Successful!\nAvailable Models:\n" + modelNames.join('\n'));
+                  } catch (e) {
+                    alert("Connection Failed:\n" + e.message + "\n\nMake sure your API Key is valid for Gemini (Generative Language API) and you are in a supported region.");
+                  }
+                }}>
+                  Test Connection & List Models
+                </button>
+              </div>
             </div>
           </div>
         </div>
