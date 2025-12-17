@@ -6,6 +6,7 @@ import './index.css';
 
 function App() {
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+  const [modelName, setModelName] = useState(localStorage.getItem('gemini_model_name') || 'gemini-1.5-flash');
   const [hostLang, setHostLang] = useState('ko-KR');
   const [guestLang, setGuestLang] = useState('ru-RU');
   const [activeSpeaker, setActiveSpeaker] = useState('host'); // 'host' | 'guest'
@@ -23,8 +24,8 @@ function App() {
   const hostPanelRef = useRef(null);
 
   useEffect(() => {
-    if (apiKey) initializeGemini(apiKey);
-  }, [apiKey]);
+    if (apiKey) initializeGemini(apiKey, modelName);
+  }, [apiKey, modelName]);
 
   const handleSpeechResult = async ({ final, interim }) => {
     // Only update if we have content
@@ -86,6 +87,7 @@ function App() {
 
   const handleSaveSettings = () => {
     localStorage.setItem('gemini_api_key', apiKey);
+    localStorage.setItem('gemini_model_name', modelName);
     setShowSettings(false);
   };
 
@@ -106,6 +108,20 @@ function App() {
                   placeholder="Paste your API key here..."
                   style={{ width: '100%' }}
                 />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Gemini Model Name (Optional)</label>
+                <input
+                  type="text"
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  placeholder="gemini-1.5-flash, gemini-pro, gemini-1.0-pro ..."
+                  style={{ width: '100%' }}
+                />
+                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '4px' }}>
+                  Common models: gemini-1.5-flash, gemini-1.5-pro, gemini-1.0-pro, gemini-pro
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '1rem' }}>

@@ -2,14 +2,14 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 let model = null;
 
-export const initializeGemini = (apiKey) => {
+export const initializeGemini = (apiKey, modelName = "gemini-1.5-flash") => {
     if (!apiKey) {
         console.warn("API Key is empty");
         return;
     }
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Fallback to 'gemini-pro' as it is the most stable and widely available model for v1beta currently
-    model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // Use the provided model name, defaulting to gemini-1.5-flash if not specified
+    model = genAI.getGenerativeModel({ model: modelName });
 };
 
 export const translateText = async (text, targetLangName) => {
