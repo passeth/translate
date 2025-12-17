@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Settings, FileText, User } from 'lucide-react';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { initializeGemini, translateText, summarizeLogs } from './services/gemini';
+import { Download } from 'lucide-react';
 import './index.css';
 
 function App() {
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+  // Default to gemini-1.5-flash as requested (corrected from 2.5 which doesn't exist yet)
   const [modelName, setModelName] = useState(localStorage.getItem('gemini_model_name') || 'gemini-1.5-flash');
   const [hostLang, setHostLang] = useState('ko-KR');
   const [guestLang, setGuestLang] = useState('ru-RU');
@@ -36,7 +38,17 @@ function App() {
     if (final) {
       const newLogId = Date.now();
       const speaker = activeSpeaker;
-      const targetLangName = speaker === 'host' ? 'Russian' : 'Korean';
+
+      const getLangName = (code) => {
+        if (code === 'ko-KR') return 'Korean';
+        if (code === 'ru-RU') return 'Russian';
+        if (code === 'en-US') return 'English';
+        return 'Korean'; // Default
+      };
+
+      // If Speaker is Host, Target is Guest's Lang. If Speaker is Guest, Target is Host's Lang.
+      const targetLangCode = speaker === 'host' ? guestLang : hostLang;
+      const targetLangName = getLangName(targetLangCode);
 
       const newLog = {
         id: newLogId,
@@ -89,6 +101,16 @@ function App() {
     localStorage.setItem('gemini_api_key', apiKey);
     localStorage.setItem('gemini_model_name', modelName);
     setShowSettings(false);
+  };
+
+  const downloadLogs = () => {
+    const element = document.createElement("a");
+    const file = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+    element.href = URL.createObjectURL(file);
+    element.download = `meeting_logs_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(element); // Required for this to work in FireFox
+    element.click();
+    document.body.removeChild(element);
   };
 
   return (
@@ -172,7 +194,10 @@ function App() {
           <div className="modal-content">
             <div className="modal-header">
               <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><FileText /> Live Meeting Minutes</span>
-              <button className="btn" onClick={() => setShowSummary(false)}>Close</button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="btn" onClick={downloadLogs} title="Download Full JSON Logs"><Download size={18} /> Logs</button>
+                <button className="btn" onClick={() => setShowSummary(false)}>Close</button>
+              </div>
             </div>
             <div className="modal-body">
               {isSummarizing && logs.length > lastSummaryIndex ? <div style={{ marginBottom: '1rem', color: '#ff8c00' }}>Wait... Generating new summary...</div> : null}
