@@ -4,6 +4,11 @@ export const useSpeechRecognition = (language, isMicOn, onResult) => {
     const [isListening, setIsListening] = useState(false);
     const recognitionRef = useRef(null);
     const isMicOnRef = useRef(isMicOn); // To access latest value in callbacks
+    const onResultRef = useRef(onResult);
+
+    useEffect(() => {
+        onResultRef.current = onResult;
+    }, [onResult]);
 
     useEffect(() => {
         isMicOnRef.current = isMicOn;
@@ -51,7 +56,7 @@ export const useSpeechRecognition = (language, isMicOn, onResult) => {
             }
 
             if (final || interim) {
-                onResult({ final, interim });
+                if (onResultRef.current) onResultRef.current({ final, interim });
             }
         };
 
