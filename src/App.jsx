@@ -7,13 +7,21 @@ import './index.css';
 
 function App() {
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
-  // Default to gemini-1.5-flash as requested (corrected from 2.5 which doesn't exist yet)
   const [modelName, setModelName] = useState(localStorage.getItem('gemini_model_name') || 'gemini-1.5-flash');
+
+  // Supabase State
+  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('supabase_url') || '');
+  const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem('supabase_key') || '');
+  const [supabaseClient, setSupabaseClient] = useState(null);
+
   const [hostLang, setHostLang] = useState('ko-KR');
   const [guestLang, setGuestLang] = useState('ru-RU');
-  const [activeSpeaker, setActiveSpeaker] = useState('host'); // 'host' | 'guest'
-  const [isMicOn, setIsMicOn] = useState(false);
-  const [logs, setLogs] = useState([]); // {id, speaker, timestamp, original, translated}
+
+  const [logs, setLogs] = useState(() => {
+    // Load from local storage on boot
+    const saved = localStorage.getItem('meeting_logs');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [currentTranscription, setCurrentTranscription] = useState('');
 
   const [showSettings, setShowSettings] = useState(!apiKey);
@@ -24,6 +32,27 @@ function App() {
 
   const guestPanelRef = useRef(null);
   const hostPanelRef = useRef(null);
+
+  // Helper for language names
+  const getLangName = (code) => {
+    if (code === 'ko-KR') return 'Korean';
+    if (code === 'ru-RU') return 'Russian';
+    if (code === 'en-US') return 'English';
+    return 'Unknown';
+  };
+
+  useEffect(() => {
+    localStorage.setItem('meeting_logs', JSON.stringify(logs));
+  }, [logs]);
+
+  useEffect(() => {
+    if (supabaseUrl && supabaseKey) {
+      import('@supabase/supabase-js').then(({ createClient }) => {
+        const client = createClient(supabaseUrl, supabaseKey);
+        setSupabaseClient(client);
+      });
+    }
+  }, [supabaseUrl, supabaseKey]);
 
   useEffect(() => {
     if (apiKey) initializeGemini(apiKey, modelName);
@@ -100,7 +129,22 @@ function App() {
   const handleSaveSettings = () => {
     localStorage.setItem('gemini_api_key', apiKey);
     localStorage.setItem('gemini_model_name', modelName);
+    localStorage.setItem('supabase_url', supabaseUrl);
+    localStorage.setItem('supabase_key', supabaseKey);
     setShowSettings(false);
+  };
+
+  const saveToSupabase = async () => {
+    if (!supabaseClient) { alert("Supabase not configured in settings."); return; }
+    try {
+      const { error } = await supabaseClient.from('meeting_logs').insert([
+        { content: logs, created_at: new Date() }
+      ]);
+      if (error) throw error;
+      alert("Saved to Supabase successfully!");
+    } catch (e) {
+      alert("Supabase Save Failed: " + e.message + "\nCheck if table 'meeting_logs' exists.");
+    }
   };
 
   const downloadLogs = () => {
@@ -150,20 +194,29 @@ function App() {
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>My Language (Host)</label>
                   <select value={hostLang} onChange={(e) => setHostLang(e.target.value)} style={{ width: '100%' }}>
-                    <option value="ko-KR">Korean</option>
-                    <option value="en-US">English</option>
-                    <option value="ru-RU">Russian</option>
+                    <option value="ko-KR">Korean (한국어)</option>
+                    <option value="en-US">English (영어)</option>
+                    <option value="ru-RU">Russian (러시아어)</option>
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Other Language (Guest)</label>
                   <select value={guestLang} onChange={(e) => setGuestLang(e.target.value)} style={{ width: '100%' }}>
-                    <option value="ru-RU">Russian</option>
-                    <option value="en-US">English</option>
-                    <option value="ko-KR">Korean</option>
+                    <option value="ru-RU">Russian (러시아어)</option>
+                    <option value="en-US">English (영어)</option>
+                    <option value="ko-KR">Korean (한국어)</option>
                   </select>
                 </div>
               </div>
+
+              <div style={{ borderTop: '1px solid #444', paddingTop: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#888' }}>Supabase Storage (Optional)</label>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <input type="text" placeholder="Supabase URL" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} style={{ flex: 1 }} />
+                  <input type="password" placeholder="Supabase Key" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} style={{ flex: 1 }} />
+                </div>
+              </div>
+
               <button className="btn primary" onClick={handleSaveSettings} style={{ marginTop: '1rem', justifyContent: 'center' }}>
                 Start Meeting
               </button>
@@ -286,14 +339,14 @@ function App() {
                 onClick={() => setActiveSpeaker('host')}
                 style={{ borderRadius: '6px', fontSize: '1rem', padding: '0.5rem 1rem' }}
               >
-                <User size={18} style={{ marginRight: 6 }} /> Me (Host)
+                <User size={18} style={{ marginRight: 6 }} /> Me ({getLangName(hostLang)})
               </button>
               <button
                 className={`btn ${activeSpeaker === 'guest' ? 'active' : ''}`}
                 onClick={() => setActiveSpeaker('guest')}
                 style={{ borderRadius: '6px', fontSize: '1rem', padding: '0.5rem 1rem' }}
               >
-                <User size={18} style={{ marginRight: 6 }} /> Guest
+                <User size={18} style={{ marginRight: 6 }} /> Guest ({getLangName(guestLang)})
               </button>
             </div>
           </div>
