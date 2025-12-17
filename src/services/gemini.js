@@ -8,9 +8,8 @@ export const initializeGemini = (apiKey) => {
         return;
     }
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Try using the specific version, or fallback to pro if needed in logic
-    // For now, let's switch to 'gemini-1.5-flash-001' which is more stable than the alias in some regions/keys
-    model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
+    // Fallback to 'gemini-pro' as it is the most stable and widely available model for v1beta currently
+    model = genAI.getGenerativeModel({ model: "gemini-pro" });
 };
 
 export const translateText = async (text, targetLangName) => {
