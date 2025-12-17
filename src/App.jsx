@@ -6,7 +6,8 @@ import './index.css';
 
 function App() {
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
-  const [modelName, setModelName] = useState(localStorage.getItem('gemini_model_name') || 'gemini-1.5-flash');
+  // Default to gemini-2.5-flash as requested
+  const [modelName, setModelName] = useState(localStorage.getItem('gemini_model_name') || 'gemini-2.5-flash');
 
   // Supabase State
   const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('supabase_url') || '');
@@ -17,6 +18,9 @@ function App() {
   const [guestLang, setGuestLang] = useState('ru-RU');
   const [activeSpeaker, setActiveSpeaker] = useState('host'); // 'host' | 'guest'
   const [isMicOn, setIsMicOn] = useState(false);
+
+  // Font Size State (1.0 = Default)
+  const [fontSize, setFontSize] = useState(parseFloat(localStorage.getItem('app_font_size')) || 1.0);
 
   // New: Single chat log
   const [logs, setLogs] = useState(() => {
@@ -36,14 +40,30 @@ function App() {
   // Helper for language names
   const getLangName = (code) => {
     if (code === 'ko-KR') return 'Korean';
-    if (code === 'ru-RU') return 'Russian';
     if (code === 'en-US') return 'English';
+    if (code === 'ru-RU') return 'Russian';
+    if (code === 'zh-CN') return 'Chinese';
+    if (code === 'ja-JP') return 'Japanese';
+    if (code === 'vi-VN') return 'Vietnamese';
     return 'Unknown';
   };
+
+  const langs = [
+    { code: 'ko-KR', label: 'Korean (한국어)' },
+    { code: 'en-US', label: 'English (영어)' },
+    { code: 'ru-RU', label: 'Russian (러시아어)' },
+    { code: 'zh-CN', label: 'Chinese (중국어)' },
+    { code: 'ja-JP', label: 'Japanese (일본어)' },
+    { code: 'vi-VN', label: 'Vietnamese (베트남어)' }
+  ];
 
   useEffect(() => {
     localStorage.setItem('meeting_logs', JSON.stringify(logs));
   }, [logs]);
+
+  useEffect(() => {
+    localStorage.setItem('app_font_size', fontSize);
+  }, [fontSize]);
 
   useEffect(() => {
     if (supabaseUrl && supabaseKey) {
@@ -194,15 +214,20 @@ function App() {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', fontSize: `${fontSize}em` }}>
 
       {/* Top Left Settings Button */}
       <button className="settings-overlay-btn" onClick={() => setShowSettings(true)} title="Settings">
         <Settings size={24} />
       </button>
 
-      {/* Top Right Action Buttons */}
-      <div className="action-overlay-btn">
+      {/* Top Right Action Buttons & Font Size Control */}
+      <div className="action-overlay-btn" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ background: 'rgba(0,0,0,0.5)', borderRadius: '6px', display: 'flex', padding: '2px' }}>
+          <button className="btn" style={{ padding: '0.4rem', background: 'transparent' }} onClick={() => setFontSize(Math.max(0.6, fontSize - 0.1))} title="Decrease Font">A-</button>
+          <span style={{ display: 'flex', alignItems: 'center', padding: '0 4px', fontSize: '0.8rem' }}>{Math.round(fontSize * 100)}%</span>
+          <button className="btn" style={{ padding: '0.4rem', background: 'transparent' }} onClick={() => setFontSize(Math.min(2.0, fontSize + 0.1))} title="Increase Font">A+</button>
+        </div>
         <button className="btn" style={{ padding: '0.5rem', background: 'rgba(0,0,0,0.5)' }} onClick={handleSummarize} title="Summarize">
           <FileText size={20} />
         </button>
@@ -221,24 +246,20 @@ function App() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Gemini Model Name (Optional)</label>
-                <input type="text" value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="gemini-1.5-flash" style={{ width: '100%' }} />
+                <input type="text" value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="gemini-2.5-flash" style={{ width: '100%' }} />
               </div>
 
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>My Language (Left Mic)</label>
                   <select value={hostLang} onChange={(e) => setHostLang(e.target.value)} style={{ width: '100%' }}>
-                    <option value="ko-KR">Korean (한국어)</option>
-                    <option value="en-US">English</option>
-                    <option value="ru-RU">Russian</option>
+                    {langs.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Their Language (Right Mic)</label>
                   <select value={guestLang} onChange={(e) => setGuestLang(e.target.value)} style={{ width: '100%' }}>
-                    <option value="ru-RU">Russian (러시아어)</option>
-                    <option value="en-US">English</option>
-                    <option value="ko-KR">Korean</option>
+                    {langs.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
                   </select>
                 </div>
               </div>
