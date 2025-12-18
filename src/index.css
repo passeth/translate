@@ -248,7 +248,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 200;
   backdrop-filter: blur(5px);
 }
 
@@ -298,5 +298,12 @@ select {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-height: 1000px) {
+  .control-bar-dual {
+    justify-content: flex-start;
+    padding-left: 2rem;
   }
 }

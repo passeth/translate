@@ -26,6 +26,7 @@ function App() {
 
   // Font Size State (1.0 = Default)
   const [fontSize, setFontSize] = useState(parseFloat(localStorage.getItem('app_font_size')) || 1.0);
+  const [micButtonSize, setMicButtonSize] = useState(parseInt(localStorage.getItem('mic_button_size')) || 140);
 
   // New: Single chat log
   const [logs, setLogs] = useState(() => {
@@ -76,6 +77,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('app_font_size', fontSize);
   }, [fontSize]);
+
+  useEffect(() => {
+    localStorage.setItem('mic_button_size', micButtonSize);
+  }, [micButtonSize]);
 
   useEffect(() => {
     if (supabaseUrl && supabaseKey) {
@@ -325,6 +330,18 @@ function App() {
                   <input type="password" placeholder="Key" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} style={{ flex: 1 }} />
                 </div>
               </div>
+              
+              <div style={{ borderTop: '1px solid #444', paddingTop: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Bottom Button Size (px): {micButtonSize}px</label>
+                  <input 
+                    type="range" 
+                    min="80" 
+                    max="200" 
+                    value={micButtonSize} 
+                    onChange={(e) => setMicButtonSize(parseInt(e.target.value))} 
+                    style={{ width: '100%' }} 
+                  />
+              </div>
 
               <button className="btn primary" onClick={handleSaveSettings} style={{ marginTop: '1rem', justifyContent: 'center' }}>
                 Save & Start
@@ -391,8 +408,9 @@ function App() {
         <button
           className={`big-mic-btn host-btn ${activeSpeaker === 'host' && isMicOn ? 'active' : 'inactive'}`}
           onClick={() => activateMic('host')}
+          style={{ width: `${micButtonSize}px`, height: `${micButtonSize}px` }}
         >
-          <Mic size={40} />
+          <Mic size={micButtonSize * 0.3} />
           <div className="mic-label">{getLangName(hostLang)}</div>
         </button>
 
@@ -400,8 +418,9 @@ function App() {
         <button
           className={`big-mic-btn guest-btn ${activeSpeaker === 'guest' && isMicOn ? 'active' : 'inactive'}`}
           onClick={() => activateMic('guest')}
+          style={{ width: `${micButtonSize}px`, height: `${micButtonSize}px` }}
         >
-          <Mic size={40} />
+          <Mic size={micButtonSize * 0.3} />
           <div className="mic-label">{getLangName(guestLang)}</div>
         </button>
       </div>
