@@ -19,8 +19,8 @@ function App() {
   const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem('supabase_key') || '');
   const [supabaseClient, setSupabaseClient] = useState(null);
 
-  const [hostLang, setHostLang] = useState('ko-KR');
-  const [guestLang, setGuestLang] = useState('ru-RU');
+  const [hostLang, setHostLang] = useState(localStorage.getItem('host_lang') || 'ko-KR');
+  const [guestLang, setGuestLang] = useState(localStorage.getItem('guest_lang') || 'ru-RU');
   const [activeSpeaker, setActiveSpeaker] = useState('host'); // 'host' | 'guest'
   const [isMicOn, setIsMicOn] = useState(false);
 
@@ -100,8 +100,11 @@ function App() {
       const speaker = activeSpeaker; // Captured at moment of finalization
 
       const targetLangCode = speaker === 'host' ? guestLang : hostLang;
-      // Correctly get the name of the TARGET language for translation prompt
+      const sourceLangCode = speaker === 'host' ? hostLang : guestLang;
+      
+      // Correctly get the name of the TARGET and SOURCE language for translation prompt
       const targetLangName = getLangName(targetLangCode);
+      const sourceLangName = getLangName(sourceLangCode);
 
       const newLog = {
         id: newLogId,
@@ -115,7 +118,7 @@ function App() {
       setCurrentTranscription('');
 
       // API Call
-      const translation = await translateText(final, targetLangName);
+      const translation = await translateText(final, sourceLangName, targetLangName);
 
       setLogs(prev => prev.map(log =>
         log.id === newLogId ? { ...log, translated: translation } : log
@@ -206,6 +209,11 @@ function App() {
     localStorage.setItem('custom_summary_prompt', customSummaryPrompt);
     localStorage.setItem('supabase_url', supabaseUrl);
     localStorage.setItem('supabase_key', supabaseKey);
+
+    // Save Languages
+    localStorage.setItem('host_lang', hostLang);
+    localStorage.setItem('guest_lang', guestLang);
+
     setShowSettings(false);
   };
 

@@ -28,11 +28,11 @@ export const fetchAvailableModels = async (apiKey) => {
     }
 };
 
-export const translateText = async (text, targetLangName) => {
+export const translateText = async (text, sourceLangName, targetLangName) => {
     if (!translationModel) return "[API Key Invalid/Missing] " + text;
 
     try {
-        const prompt = `Translate the following text into ${targetLangName}. Output ONLY the translated text, do not include any other commentary.
+        const prompt = `Translate the following text from ${sourceLangName} into ${targetLangName}. Output ONLY the translated text, do not include any other commentary.
     Text: "${text}"`;
         const result = await translationModel.generateContent(prompt);
         return result.response.text().trim();
